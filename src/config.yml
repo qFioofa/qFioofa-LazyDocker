@@ -1,0 +1,210 @@
+gui:
+  scrollHeight: 3
+  language: "auto"
+  scrollPastBottom: false
+  mouseEvents: true
+  showAllContainers: false
+  returnImmediately: false
+  wrapMainPanel: true
+  sidePanelWidth: 0.3333
+  showBottomLine: true
+  expandFocusedSidePanel: false
+  screenMode: "normal"
+  containerStatusHealthStyle: "long"
+  border: "rounded"
+
+confirmOnQuit: false
+
+logs:
+  timestamps: true
+  since: "60m"
+  tail: ""
+
+stats:
+  maxDuration: 3m
+  graphs:
+    - caption: "CPU (%)"
+      statPath: "DerivedStats.CPUPercentage"
+      color: "cyan"
+    - caption: "Memory (%)"
+      statPath: "DerivedStats.MemoryPercentage"
+      color: "green"
+
+customCommands:
+  containers:
+    - name: sh
+      attach: true
+      shell: true
+      command: 'docker exec -it {{ .Container.ID }} sh'
+    - name: bash
+      attach: true
+      shell: true
+      command: 'docker exec -it {{ .Container.ID }} bash'
+    - name: inspect
+      attach: true
+      shell: true
+      command: 'docker inspect {{ .Container.ID }} | less -R'
+    - name: top
+      attach: true
+      shell: true
+      command: 'docker top {{ .Container.ID }}'
+    - name: diff
+      attach: true
+      shell: true
+      command: 'docker diff {{ .Container.ID }} | less -R'
+    - name: logs (100 lines)
+      attach: true
+      shell: true
+      command: 'docker logs --tail=100 --follow {{ .Container.ID }}'
+    - name: stats
+      attach: true
+      shell: true
+      command: 'docker stats --no-stream {{ .Container.ID }}'
+    - name: copy id
+      attach: false
+      shell: true
+      command: 'echo -n {{ .Container.ID }} | wl-copy'
+    - name: port mappings
+      attach: true
+      shell: true
+      command: 'docker port {{ .Container.ID }}'
+    - name: export tar
+      attach: false
+      shell: true
+      command: 'docker export {{ .Container.ID }} > {{ .Container.ID }}.tar'
+    - name: restart (force)
+      attach: false
+      shell: true
+      command: 'docker rm -f {{ .Container.ID }} && {{ .DockerCompose }} up -d'
+
+  services:
+    - name: env
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} exec {{ .Service.Name }} env | less -R'
+    - name: logs (500 lines)
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} logs --tail=500 --follow {{ .Service.Name }}'
+    - name: exec bash
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} exec {{ .Service.Name }} bash'
+    - name: exec sh
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} exec {{ .Service.Name }} sh'
+    - name: rebuild
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} up -d --build --force-recreate {{ .Service.Name }}'
+    - name: restart (force recreate)
+      attach: false
+      shell: true
+      command: '{{ .DockerCompose }} up -d --force-recreate {{ .Service.Name }}'
+    - name: top
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} top {{ .Service.Name }}'
+    - name: restart deps
+      attach: false
+      shell: true
+      command: '{{ .DockerCompose }} restart {{ .Service.Name }}'
+
+  images:
+    - name: inspect
+      attach: true
+      shell: true
+      command: 'docker inspect {{ .Image.Name }} | less -R'
+    - name: history
+      attach: true
+      shell: true
+      command: 'docker history {{ .Image.Name }} | less -R'
+    - name: tag latest
+      attach: false
+      shell: true
+      command: 'docker tag {{ .Image.Name }} {{ .Image.Name }}:latest'
+
+  volumes:
+    - name: inspect
+      attach: true
+      shell: true
+      command: 'docker volume inspect {{ .Volume.Name }} | less -R'
+    - name: browse files
+      attach: true
+      shell: true
+      command: 'docker run --rm -v {{ .Volume.Name }}:/data alpine ls -la /data'
+    - name: browse shell
+      attach: true
+      shell: true
+      command: 'docker run --rm -it -v {{ .Volume.Name }}:/data alpine sh'
+
+  networks:
+    - name: inspect
+      attach: true
+      shell: true
+      command: 'docker network inspect {{ .Network.Name }} | less -R'
+    - name: list containers
+      attach: true
+      shell: true
+      command: 'docker network inspect {{ .Network.Name }} -f "{{ range .Containers }}{{ .Name }} {{ end }}"'
+
+bulkCommands:
+  containers:
+    - name: stop all
+      command: 'docker stop $(docker ps -q)'
+    - name: kill all
+      command: 'docker kill $(docker ps -q)'
+    - name: restart all
+      command: 'docker restart $(docker ps -q)'
+    - name: remove stopped
+      shell: true
+      command: 'docker container prune -f'
+
+  services:
+    - name: up
+      command: '{{ .DockerCompose }} up -d'
+    - name: up (attached)
+      attach: true
+      command: '{{ .DockerCompose }} up'
+    - name: stop
+      command: '{{ .DockerCompose }} stop'
+    - name: pull
+      attach: true
+      command: '{{ .DockerCompose }} pull'
+    - name: build
+      attach: true
+      command: '{{ .DockerCompose }} build --parallel --force-rm'
+    - name: down
+      command: '{{ .DockerCompose }} down'
+    - name: down with volumes
+      command: '{{ .DockerCompose }} down --volumes'
+    - name: down with images
+      command: '{{ .DockerCompose }} down --rmi all'
+    - name: down with volumes and images
+      command: '{{ .DockerCompose }} down --volumes --rmi all'
+    - name: recreate all
+      attach: true
+      command: '{{ .DockerCompose }} up -d --force-recreate'
+
+  images:
+    - name: prune unused
+      shell: true
+      command: 'docker image prune -a -f'
+    - name: prune dangling
+      shell: true
+      command: 'docker image prune -f'
+
+  volumes:
+    - name: prune unused
+      shell: true
+      command: 'docker volume prune -f'
+
+  networks:
+    - name: prune unused
+      shell: true
+      command: 'docker network prune -f'
+
+oS:
+  openCommand: "xdg-open {{filename}}"
+  openLinkCommand: "xdg-open {{link}}"
