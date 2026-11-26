@@ -1,8 +1,11 @@
+# yaml-language-server: $schema=https://json.schemastore.org/lazydocker.json
+
 gui:
   scrollHeight: 3
   language: "auto"
   scrollPastBottom: false
-  mouseEvents: true
+  # NOTE: this maps to IgnoreMouseEvents upstream, so true DISABLES the mouse.
+  mouseEvents: false
   showAllContainers: false
   returnImmediately: false
   wrapMainPanel: true
@@ -18,17 +21,33 @@ confirmOnQuit: false
 logs:
   timestamps: true
   since: "60m"
-  tail: ""
+  tail: "500"
 
 stats:
-  maxDuration: 3m
+  maxDuration: 5m
   graphs:
     - caption: "CPU (%)"
       statPath: "DerivedStats.CPUPercentage"
       color: "cyan"
+      height: 6
     - caption: "Memory (%)"
       statPath: "DerivedStats.MemoryPercentage"
       color: "green"
+      height: 6
+    - caption: "Net RX"
+      statPath: "ClientStats.Networks.Eth0.RxBytes"
+      color: "yellow"
+      height: 4
+    - caption: "Net TX"
+      statPath: "ClientStats.Networks.Eth0.TxBytes"
+      color: "magenta"
+      height: 4
+
+commandTemplates:
+  dockerCompose: "docker compose"
+  restartService: '{{ .DockerCompose }} up -d --force-recreate {{ .Service.Name }}'
+  allLogs: '{{ .DockerCompose }} logs --tail=300 --follow'
+  # NOTE: the upstream yaml key is the misspelled `viewAlLogs`, not `viewAllLogs`.
 
 customCommands:
   containers:
@@ -63,11 +82,23 @@ customCommands:
     - name: copy id
       attach: false
       shell: true
-      command: 'echo -n {{ .Container.ID }} | wl-copy'
+      command: 'id="{{ .Container.ID }}"; if command -v wl-copy >/dev/null 2>&1; then printf %s "$id" | wl-copy; elif command -v xclip >/dev/null 2>&1; then printf %s "$id" | xclip -selection clipboard; elif command -v xsel >/dev/null 2>&1; then printf %s "$id" | xsel -ib; else printf %s "$id"; fi'
     - name: port mappings
       attach: true
       shell: true
       command: 'docker port {{ .Container.ID }}'
+    - name: pause
+      attach: false
+      shell: true
+      command: 'docker pause {{ .Container.ID }}'
+    - name: unpause
+      attach: false
+      shell: true
+      command: 'docker unpause {{ .Container.ID }}'
+    - name: system df
+      attach: true
+      shell: true
+      command: 'docker system df'
     - name: export tar
       attach: false
       shell: true
@@ -110,6 +141,26 @@ customCommands:
       attach: false
       shell: true
       command: '{{ .DockerCompose }} restart {{ .Service.Name }}'
+    - name: pull
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} pull {{ .Service.Name }}'
+    - name: config
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} config | less -R'
+    - name: ps
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} ps'
+    - name: images
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} images'
+    - name: watch
+      attach: true
+      shell: true
+      command: '{{ .DockerCompose }} watch'
 
   images:
     - name: inspect
@@ -124,6 +175,14 @@ customCommands:
       attach: false
       shell: true
       command: 'docker tag {{ .Image.Name }} {{ .Image.Name }}:latest'
+    - name: dive
+      attach: true
+      shell: true
+      command: 'dive {{ .Image.Name }}:{{ .Image.Tag }}'
+    - name: scout cves
+      attach: true
+      shell: true
+      command: 'docker scout cves {{ .Image.Name }} | less -R'
 
   volumes:
     - name: inspect
@@ -152,11 +211,20 @@ customCommands:
 bulkCommands:
   containers:
     - name: stop all
+      shell: true
       command: 'docker stop $(docker ps -q)'
     - name: kill all
+      shell: true
       command: 'docker kill $(docker ps -q)'
     - name: restart all
+      shell: true
       command: 'docker restart $(docker ps -q)'
+    - name: pause all
+      shell: true
+      command: 'docker pause $(docker ps -q)'
+    - name: unpause all
+      shell: true
+      command: 'docker unpause $(docker ps -aq --filter status=paused)'
     - name: remove stopped
       shell: true
       command: 'docker container prune -f'
@@ -183,6 +251,13 @@ bulkCommands:
       command: '{{ .DockerCompose }} down --rmi all'
     - name: down with volumes and images
       command: '{{ .DockerCompose }} down --volumes --rmi all'
+    - name: ps
+      command: '{{ .DockerCompose }} ps'
+    - name: config
+      attach: true
+      command: '{{ .DockerCompose }} config'
+    - name: images
+      command: '{{ .DockerCompose }} images'
     - name: recreate all
       attach: true
       command: '{{ .DockerCompose }} up -d --force-recreate'
@@ -194,6 +269,9 @@ bulkCommands:
     - name: prune dangling
       shell: true
       command: 'docker image prune -f'
+    - name: system df
+      shell: true
+      command: 'docker system df'
 
   volumes:
     - name: prune unused
@@ -204,6 +282,17 @@ bulkCommands:
     - name: prune unused
       shell: true
       command: 'docker network prune -f'
+
+replacements:
+  imageNamePrefixes:
+    "docker.io/": ""
+    "ghcr.io/": ""
+
+# NOTE: `ignore` is undocumented upstream and may change between releases.
+# Any list item whose display text contains one of these substrings is hidden.
+ignore:
+  - "<none>"
+  - "buildkit"
 
 oS:
   openCommand: "xdg-open {{filename}}"
